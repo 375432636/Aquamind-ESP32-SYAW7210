@@ -25,8 +25,19 @@
 
 #define BUILTIN_LED_GPIO        GPIO_NUM_15
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
+#define BUTTON2_GPIO            GPIO_NUM_14
 #define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_14
 #define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_NC
+
+// 电池管理
+#define LOW_BATTERY_ALARM_LEVEL 20              // 低电量报警阈值(%)
+#define LOW_BATTERY_ALARM_INTERVAL_MS 20        // 低电量报警间隔时间(秒)
+#define CHARGING_COMPLETE_ALARM_INTERVAL_MS 10  // 充电完成报警间隔时间(秒)
+
+#define POWER_CHARGE_DETECT_PIN   GPIO_NUM_48   // 充电检测引脚
+#define POWER_CHARGE_COMPLETE_PIN GPIO_NUM_47   // 充电完成检测引脚
+#define POWER_ADC_UNIT    ADC_UNIT_1
+#define POWER_ADC_CHANNEL ADC_CHANNEL_9         // ADC1_CH9 对应 GPIO10（电量检测）
 
 #define DISPLAY_WIDTH   320
 #define DISPLAY_HEIGHT  240
@@ -67,8 +78,13 @@
  *   - 该模块必须为 3.3V 电平，且与 ESP32 共地
  */
 #define PN532_UART_PORT        UART_NUM_1
-#define PN532_UART_TX_PIN      GPIO_NUM_11   // ESP32 -> PN532 (PN532 RX)
-#define PN532_UART_RX_PIN      GPIO_NUM_12   // PN532 -> ESP32 (PN532 TX)
+//第一版
+// #define PN532_UART_TX_PIN      GPIO_NUM_11   // ESP32 -> PN532 (PN532 RX)
+// #define PN532_UART_RX_PIN      GPIO_NUM_12   // PN532 -> ESP32 (PN532 TX)
+
+//第二版
+#define PN532_UART_TX_PIN      GPIO_NUM_12   // ESP32 -> PN532 (PN532 RX)
+#define PN532_UART_RX_PIN      GPIO_NUM_11   // PN532 -> ESP32 (PN532 TX)
 #define PN532_UART_BAUDRATE    115200
 
 #endif // _BOARD_CONFIG_H_
