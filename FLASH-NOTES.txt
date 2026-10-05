@@ -1,0 +1,51 @@
+SYAW7210 实机烧录记录
+日期：2026-10-06
+
+设备与镜像
+串口：/dev/cu.usbmodem11101
+MAC：44:b1:76:dd:49:58
+芯片：ESP32-S3 rev v0.2；Flash 16 MB；内置 PSRAM 8 MB。
+固件：1.9.4，板型 syaw-7210，GPIO0 PTT，设备端 AEC。
+烧录文件与最终 releases/v1.9.4_syaw-7210.zip 中的镜像一致。
+最终应用 SHA256：b49b5772bf36c2879d77daa1c88fc14fa9ba31e717637a29d561be6f9313b633
+
+备份与写入范围
+烧录前完整读取并保存了设备 16 MB Flash：
+tmp/flash-20261006-44b176dd4958/before-flash-16mb.bin
+同目录 backup.sha256 保存校验值。备份含设备配置，目录权限为 700，仅作本机恢复使用。
+新旧分区表的 NVS 均为 0x9000 / 0x4000，使用分区烧录保留 NVS。
+写入 bootloader、partition-table、otadata、model 和 ota_0 应用。
+没有使用 erase_flash，也没有把含填充区的合并镜像整段覆盖到设备。
+最后一次写入的五个分区均显示 Hash of data verified。
+
+启动故障与修复
+原始运行日志：tmp/flash-20261006-44b176dd4958/startup.log
+现象：搜索已保存 Wi-Fi 超时，在启动 APSTA 配网时 LoadProhibited 崩溃。
+堆栈：esp_wifi_get_if_mac -> wifi_start -> wifi_default_action_sta_start。
+根因：esp-wifi-connect 2.6.2 Stop() 调用 esp_netif_destroy，
+未清理 ESP-IDF 保存的默认 Wi-Fi 接口/回调，下一次 STA_START 访问释放后的对象。
+修复：WifiBoard::StartNetwork 在 Stop() 前调用
+esp_wifi_clear_default_wifi_driver_and_handlers，随后走原有配网流程。
+仅修改项目源码，ESP-IDF 和托管依赖安装未修改。
+
+测试
+主机回归先复现 timeout 路径访问已释放接口，再验证修复后通过。
+最终 pytest：4 项、19 个子测试通过；新增 Python 测试 black / isort 通过。
+ESP-IDF 5.4.1 增量构建、合并和打包通过；ZIP CRC 与镜像校验通过。
+修复后串口日志：tmp/flash-20261006-44b176dd4958/startup-wifi-fix.log
+连续观察 80 秒，约 62.7 秒进入 configuring，热点和 Web 服务成功启动；没有崩溃。
+启动日志 ELF SHA256 与当前 build/xiaozhi.elf 一致。
+
+体验步骤
+设备未找到已保存的 Wi-Fi，已进入配网模式。
+手机连接热点 Xiaozhi-4959，浏览器访问 http://192.168.4.1。
+配置可用的 2.4 GHz Wi-Fi，等待设备正常联网和激活完成。
+进入待机后按住 SW1 / BOOT / GPIO0 说话，松开发送；回复中按下可打断。
+不要在上电或复位时按住 BOOT，以免进入下载模式。
+
+尚未验证或需确认
+用户实际录音、松开发送和回复打断需联网后确认，目前仅完成启动与配网验证。
+PN532 日志仍提示无响应，需核对模块连接、HSU 模式和 UART 线序。
+首次配网提示音初始化有 i2s_channel_disable “channel has not been enabled yet” 日志，
+未导致本次观察期崩溃；实际音频效果待确认。
+LCD DC 与 I2S BCLK 共用 GPIO39 的既有冲突仍保留，屏幕是否存在需实物确认。

@@ -8,7 +8,9 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <esp_netif.h>
 #include <esp_network.h>
+#include <esp_wifi_default.h>
 #include <esp_log.h>
 
 #include <font_awesome.h>
@@ -106,6 +108,13 @@ void WifiBoard::StartNetwork() {
 
     // Try to connect to WiFi, if failed, launch the WiFi configuration AP
     if (!wifi_station.WaitForConnected(60 * 1000)) {
+        // esp-wifi-connect 2.6.2 Stop() frees the station netif without clearing
+        // ESP-IDF's default callbacks. APSTA startup would reuse that freed
+        // pointer on STA_START. Detach the driver/handlers before Stop frees it.
+        auto* station_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (station_netif != nullptr) {
+            ESP_ERROR_CHECK(esp_wifi_clear_default_wifi_driver_and_handlers(station_netif));
+        }
         wifi_station.Stop();
         wifi_config_mode_ = true;
         EnterWifiConfigMode();

@@ -16,6 +16,10 @@
 #include "audio_service.h"
 #include "device_state_event.h"
 
+#if CONFIG_BOARD_TYPE_SYAW_7210
+#include "boards/syaw-7210/syaw_ptt_request.h"
+#endif
+
 
 #define MAIN_EVENT_SCHEDULE (1 << 0)
 #define MAIN_EVENT_SEND_AUDIO (1 << 1)
@@ -54,6 +58,10 @@ public:
     void ToggleChatState();
     void StartListening();
     void StopListening();
+#if CONFIG_BOARD_TYPE_SYAW_7210
+    void StartSyawListening();
+    void StopSyawListening();
+#endif
     void Reboot();
     void WakeWordInvoke(const std::string& wake_word);
     bool CanEnterSleepMode();
@@ -77,6 +85,11 @@ private:
     AecMode aec_mode_ = kAecOff;
     std::string last_error_message_;
     AudioService audio_service_;
+
+#if CONFIG_BOARD_TYPE_SYAW_7210
+    SyawPttRequest syaw_ptt_request_;
+    uint32_t syaw_ptt_started_ = 0;  // Only accessed by the main event loop.
+#endif
 
     bool has_server_time_ = false;
     bool aborted_ = false;

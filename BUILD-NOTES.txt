@@ -1,0 +1,107 @@
+SYAW-7210 云台：导入、PTT 移植与编译记录
+
+最新结果：2026-10-06 GPIO0 PTT 及实机配网修复
+独立板型 syaw-7210 已编译、打包并校验通过，仍使用本机 ESP-IDF v5.4.1。
+配置：CONFIG_BOARD_TYPE_SYAW_7210=y、CONFIG_USE_DEVICE_AEC=y。
+GPIO0 按下开始手动录音，松开发送停止，可打断回复；连接期间松手会取消请求。
+移植说明：main/boards/syaw-7210/PORTING-NOTES.txt。
+原 lichuang-dev 硬件实现复用，新增行为由 syaw-7210 条件编译启用。
+旧仓库 Aquamind-ESP32 未修改；本仓库保留供应商提交历史及后续改动。
+GitHub：https://github.com/deepedge-ai-tech/Aquamind-ESP32-SYAW7210
+开发分支：SYAW-7210。
+
+仓库内的构建参考
+docs/build-reference/sdkconfig.syaw-7210：已验证的 ESP-IDF 配置快照。
+docs/build-reference/dependencies.syaw-7210.lock：已验证的组件版本锁文件。
+激活 ESP-IDF 5.4.1 后，先把锁文件复制到根目录 dependencies.lock，
+再执行 python scripts/release.py syaw-7210。具体步骤见 README.md。
+下文 build/、releases/ 和 tmp/ 中的镜像、日志及设备备份仅保留在本机，不纳入 Git。
+
+当前产物
+releases/v1.9.4_syaw-7210.zip：2,439,199 字节。
+build/merged-binary.bin：5,008,640 字节，合并镜像起始偏移 0x0。
+build/xiaozhi.bin：3,960,064 字节。
+当前 build/ 对应 syaw-7210 PTT；下文首次编译的 build/ 大小仅为历史记录。
+releases/v1.9.4_lichuang-dev.zip 及 releases/build-metadata/ 保留为原基线。
+releases/syaw-7210-build-metadata/ 保存本次配置、锁文件、源码补丁和校验记录。
+
+验证
+ESP-IDF 完整编译、合并镜像及打包成功；镜像 checksum / validation hash 有效。
+ZIP CRC 通过，包内镜像与 build/merged-binary.bin 完全一致。
+pytest：4 项测试、19 个子测试通过（PTT、按键绑定及配网接口生命周期）。
+LLVM 主机覆盖率：新增 PTT C++ 实现行覆盖率 100%，分支覆盖率 89.39%。
+新增 Python 测试的 black / isort 检查和 git diff --check 通过。
+本仓库为 C++ 固件，使用实际 C++ 覆盖率；未运行无关后端的 Django 测试。
+日志：tmp/build-syaw7210-ptt.log、tmp/syaw-ptt-pytest.log、tmp/syaw-image-info.log。
+使用现有 ESP-IDF 与组件，未下载或升级 ESP-IDF。
+
+实机记录
+已烧录到 ESP32-S3（MAC 44:b1:76:dd:49:58），五个分区的写入校验通过。
+首次上板发现 Wi-Fi 超时切换配网时崩溃，已补齐默认接口回调的清理并重新烧录。
+修复后已观察到配网热点 Xiaozhi-4959 与 Web 服务启动，80 秒观察期无崩溃。
+完整 Flash 备份、日志、故障原因及体验步骤见 FLASH-NOTES.txt。
+尚未完成联网后的 PTT 录音实测。用户暂不确定是否有屏幕，故保留屏幕配置。
+LCD DC 与 I2S BCLK 共用 GPIO39 的既有冲突尚未处理，需实物确认后再验证音频。
+
+----------------------------------------------------------------
+以下为首次导入及供应商基线编译记录（2026-10-05）
+
+结果
+已使用本机 ESP-IDF v5.4.1 编译并打包成功，无需下载或升级 ESP-IDF。
+仅完成编译和镜像校验，未烧录设备，尚未验证板上运行。
+后续已归档第二版原理图；静态核对发现 GPIO39 屏幕/音频用途冲突，
+详见 docs/hardware/HARDWARE-NOTES.txt。原编译产物尚未包含硬件适配修复。
+
+源码
+位置：/Users/john/Documents/project/python/Aquamind/xiaozhi-SYAW-7210
+来源：/Users/john/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/ablessedstar_bc97/msg/file/2026-09/xiaozhi-SYAW-7210.bundle
+bundle SHA256：10e8d3430297f2b8459583cd5efb9432eb427e72332328f6c778fa278717cd2e
+原始提交：c6688fc66240156e90439aa6c280cc7470d56ce5
+分支：SYAW-7210
+origin 已移除；git bundle verify 和 git fsck --full 通过。
+这是与 Aquamind-ESP32 并列的独立仓库。
+
+板型与工具链
+供应商把 SYAW-7210 的修改放在 main/boards/lichuang-dev/ 中。
+因此编译板型及产物名称仍为 lichuang-dev，不代表通用立创板固件。
+芯片：ESP32-S3；Flash：16 MB；PSRAM：八线；语言：简体中文。
+CONFIG_BOARD_TYPE_LICHUANG_DEV=y
+CONFIG_USE_DEVICE_AEC=y
+ESP-IDF：/Users/john/esp/esp-idf-v5.4.1
+交叉编译器：xtensa-esp-elf GCC 14.2.0，esp-14.2.0_20241119。
+项目版本：1.9.4。依赖解析使用仓库 main/idf_component.yml。
+
+首次编译失败及修复
+main/boards/lichuang-dev/pn532.cc 的两处 ESP_LOGI 格式符与 uint32_t 不匹配。
+该工具链的 uint32_t 为 unsigned long；原来的 %u / %d 触发 -Werror=format。
+仅增加 <cinttypes> 并把这两处格式符改为 PRIu32，未修改功能逻辑。
+修改保留在工作区，尚未提交；原始提交仍可通过 Git 查看。
+单独编译 pn532.cc：修改前失败，修改后通过；随后完整构建及打包通过。
+
+产物（相对本目录）
+releases/v1.9.4_lichuang-dev.zip：包含 merged-binary.bin 的固件包。
+build/merged-binary.bin：合并镜像，5,007,856 字节，生成的烧录起始偏移为 0x0。
+build/xiaozhi.bin：应用镜像，3,959,280 字节；应用分区大小 6 MiB，剩余约 37%。
+releases/build-metadata/：本次 sdkconfig、dependencies.lock、修复补丁及 SHA256。
+
+复现命令
+cd /Users/john/Documents/project/python/Aquamind/xiaozhi-SYAW-7210
+source /Users/john/esp/esp-idf-v5.4.1/export.sh
+idf.py -DBOARD_NAME=lichuang-dev build
+python scripts/release.py
+
+从全新检出构建时，应用相同修复并使用：
+python scripts/release.py lichuang-dev
+该命令会重新配置并编译；若 releases 中已有同名 zip，脚本会跳过。
+准确复用依赖版本时，应保留本次 dependencies.lock。
+
+校验与日志
+ESP32-S3 镜像 checksum / validation hash 有效；ZIP CRC 检查通过。
+ZIP 内合并镜像与 build/merged-binary.bin 完全一致。
+板型、AEC、Flash 大小及 PN532 编译单元已核验；git diff --check 通过。
+tmp/build-idf54.log：首次完整构建及原始错误。
+tmp/pn532-before.log、tmp/pn532-after.log：修复前后单文件编译。
+tmp/build-idf54-fixed.log：修复后的完整构建。
+tmp/package-idf54.log：合并与打包日志。
+原项目存在 LV_USE_OS 旧配置项和触控组件弃用警告，未阻塞本次构建。
+未运行 Aquamind-Core 的 pytest / black / isort：本次改动仅涉及独立 C++ 固件仓库。

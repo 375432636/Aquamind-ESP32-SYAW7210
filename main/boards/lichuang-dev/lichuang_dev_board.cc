@@ -8,6 +8,11 @@
 #include "pn532.h"
 #include "power_manager.h"
 
+#if CONFIG_BOARD_TYPE_SYAW_7210
+#include "boards/syaw-7210/syaw_button.h"
+static_assert(BOOT_BUTTON_GPIO == GPIO_NUM_0, "SYAW7210 PTT must use GPIO0");
+#endif
+
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/i2c_master.h>
@@ -59,6 +64,12 @@ private:
     }
 
     void InitializeButtons() {
+#if CONFIG_BOARD_TYPE_SYAW_7210
+        BindSyawPttButton(
+            boot_button_, Application::GetInstance(),
+            [this]() { ResetWifiConfiguration(); },
+            []() { return WifiStation::GetInstance().IsConnected(); });
+#else
         boot_button_.OnClick([this]() {
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
@@ -75,6 +86,8 @@ private:
             }
         });
 #endif
+
+#endif  // CONFIG_BOARD_TYPE_SYAW_7210
 
         button2_.OnClick([this]() {
             ESP_LOGI(TAG, "Button2 clicked");

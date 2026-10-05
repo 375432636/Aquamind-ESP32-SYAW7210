@@ -1,4 +1,40 @@
-# An MCP-based Chatbot | 一个基于 MCP 的聊天机器人
+# Aquamind-ESP32-SYAW7210
+
+SYAW7210 第二版云台固件，基于供应商提供的小智 ESP32 代码。当前开发分支为 `SYAW-7210`，编译板型为 `syaw-7210`，已使用 ESP-IDF **5.4.1** 完成编译与实机烧录。
+
+- **GPIO0 / SW1 / BOOT 按住说话（PTT）**：按下录音、松开发送，回复中按下可打断；支持连接期间提前松手取消。
+- 复用供应商 `lichuang-dev` 硬件实现，保留 ES8311 + ES7210、设备端 AEC、电池、灯链和 NFC 适配。
+- 修复 Wi-Fi 超时切换配网时访问已释放接口导致的崩溃，并附带 PTT 与配网回归测试。
+
+### 文档与硬件资料
+
+- [PTT 移植说明与使用方式](main/boards/syaw-7210/PORTING-NOTES.txt)
+- [编译记录](BUILD-NOTES.txt) · [实机烧录记录](FLASH-NOTES.txt)
+- [第二版原理图](docs/hardware/SCH_AI云台2609018-第二版_2026-09-27.pdf) · [硬件核对记录](docs/hardware/HARDWARE-NOTES.txt)
+- [已验证的编译配置](docs/build-reference/sdkconfig.syaw-7210) · [组件版本锁文件](docs/build-reference/dependencies.syaw-7210.lock)
+
+### 构建与测试
+
+先激活已安装的 ESP-IDF 5.4.1 环境，再在仓库根目录执行：
+
+```bash
+cp docs/build-reference/dependencies.syaw-7210.lock dependencies.lock
+python scripts/release.py syaw-7210
+```
+
+产物为 `releases/v1.9.4_syaw-7210.zip`。发布脚本会跳过已存在的同名包；增量编译和重新打包方法见移植说明。烧录并保留已有配网数据时，应使用构建生成的分区烧录参数，详见烧录记录。
+
+主机测试需要 Python 3 和支持 C++17 的编译器：
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py' -v
+```
+
+GPIO0 上电时仍承担 BOOT 功能。屏幕与 I2S BCLK 共用 GPIO39、PN532 未响应等待确认项保留在硬件及烧录记录中。`build/`、`releases/`、串口日志和设备完整 Flash 备份均为本地产物，不纳入源码仓库。
+
+---
+
+以下保留上游小智项目的介绍、文档与许可证信息。
 
 （中文 | [English](README_en.md) | [日本語](README_ja.md)）
 

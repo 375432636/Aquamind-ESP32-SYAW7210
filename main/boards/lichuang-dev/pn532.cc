@@ -4,6 +4,7 @@
 #include <esp_timer.h>
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstdio>
 #include <cstring>
 
@@ -60,7 +61,7 @@ Pn532::Pn532(uart_port_t uart_port, gpio_num_t tx, gpio_num_t rx, uint32_t baud_
         return;
     }
     initialized_ = true;
-    ESP_LOGI(TAG, "UART ready (TX=%d RX=%d %u bps)",
+    ESP_LOGI(TAG, "UART ready (TX=%d RX=%d %" PRIu32 " bps)",
              static_cast<int>(tx_), static_cast<int>(rx_), baud_rate_);
 }
 
@@ -104,7 +105,8 @@ void Pn532::Start() {
 
     uint32_t ver = 0;
     if (GetFirmwareVersion(ver)) {
-        ESP_LOGI(TAG, "firmware version %d.%d", (ver >> 16) & 0xFF, (ver >> 8) & 0xFF);
+        ESP_LOGI(TAG, "firmware version %" PRIu32 ".%" PRIu32,
+                 (ver >> 16) & 0xFF, (ver >> 8) & 0xFF);
     } else {
         ESP_LOGW(TAG, "read firmware version failed");
     }

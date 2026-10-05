@@ -1,0 +1,2 @@
+# Keep schematic PDFs byte-for-byte and out of text diffs.
+*.pdf binary

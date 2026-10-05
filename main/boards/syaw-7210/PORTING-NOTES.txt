@@ -1,0 +1,78 @@
+SYAW7210 GPIO0 PTT 移植说明
+日期：2026-10-06
+
+代码位置与板型
+本仓库仍位于 Aquamind/xiaozhi-SYAW-7210，分支 SYAW-7210。
+新增板型 syaw-7210（CONFIG_BOARD_TYPE_SYAW_7210），发布包名与 lichuang-dev 区分。
+硬件实现继续复用本仓库 main/boards/lichuang-dev/，包括 ES8311 + ES7210、
+RGB、电池及 PN532；syaw-7210 目录只放新板型配置与 PTT 扩展。
+原 lichuang-dev 板型的 BOOT 单击/双击绑定保留在条件编译的另一分支。
+旧仓库 Aquamind-ESP32 及 aquamind-gimbal 未修改。
+
+运行时交互
+1. SW1 / BOOT / GPIO0 按下：待机时打开音频通道并开始手动录音；
+   已在自动/实时监听时切换为手动录音，发送一次 mode=manual 的 listen/start。
+2. 正在播放回复时按下：先发送 abort（reason=wake_word_detected），清理待播音频，
+   再开始手动录音。这与旧 aquamind-gimbal 的实际线上消息格式一致。
+3. GPIO0 松开：发送一次 listen/stop 并回到待机，等待服务端回复。
+   松手后的 click/double-click 不再触发聊天切换或 AEC 切换。
+4. 快速按下后松开、连接尚未完成时松开：取消本次请求，防止松手后才开始录音。
+   在连接期间松开后重新按下，前一次松手不会取消新的按住说话请求。
+5. 启动阶段尚未连接 Wi-Fi 时按下 GPIO0，仍调用原来的 Wi-Fi 配置入口。
+   配网、升级、激活等非对话状态不启动 PTT。
+
+实现选择
+GPIO0 只绑定 OnPressDown / OnPressUp，不增加长按触发延迟。
+SyawPttRequest 用原子序号区分每次按压，松手时立即使请求失效；
+网络连接、协议消息和音频状态切换仍在应用主事件循环中执行。
+公共 Application::StopListening 在 Connecting 状态会直接忽略调用，
+因此这里有独立的 StopSyawListening，避免照搬旧实现时丢失松手事件。
+新仓库通过 AudioService 管理音频；移植的是交互和协议行为，不复制旧音频驱动。
+AEC 的持久设置不因 PTT 改变，默认构建继续启用设备端 AEC。
+GPIO14 / SW2 保留现有行为；GPIO15 是新板 RGB 灯链，不作为 PTT 使用。
+
+构建
+在仓库根目录执行：
+source /Users/john/esp/esp-idf-v5.4.1/export.sh
+python scripts/release.py syaw-7210
+
+发布脚本遇到同名 ZIP 会跳过；开发时已经选定 syaw-7210 后可用：
+idf.py -DBOARD_NAME=syaw-7210 build
+python scripts/release.py
+
+不带板型参数的 release.py 根据当前构建结果重新合并并打包。
+编译配置必须是 CONFIG_BOARD_TYPE_SYAW_7210=y；仅传 BOARD_NAME 不会切换板型。
+产物：releases/v1.9.4_syaw-7210.zip，包含 merged-binary.bin。
+原供应商基线包 releases/v1.9.4_lichuang-dev.zip 保留用于对照。
+
+测试
+python3 -m unittest discover -s tests -p 'test_syaw_ptt.py' -v
+或：python3 -m pytest tests/test_syaw_ptt.py -q
+
+测试直接编译 syaw_ptt.cc、按键绑定模板及原 Protocol 消息序列化；
+用替身模拟硬件音频服务和应用主循环，不依赖板子或网络。
+覆盖待机、自动/实时监听、回复打断、快速松手、连接中松手/重按、
+重复事件、连接失败、未初始化协议、断线、非对话状态和配网入口。
+这验证消息和状态控制，不能替代麦克风、扬声器、GPIO 时序与服务端实测。
+
+实机待确认
+用户目前无法确定是否带屏幕，故保留现有显示配置。
+LCD DC 与 I2S BCLK 在现有硬件代码中都使用 GPIO39，此冲突尚未处理；
+编译通过不表示实机音频一定正常。详见 docs/hardware/HARDWARE-NOTES.txt。
+GPIO0 在复位/上电时仍有 BOOT 启动模式功能，PTT 应在正常运行后使用。
+首次打开音频连接需要等待连接完成，连接完成前的语音不缓存。
+移植完成时尚未烧录；后续已烧录并完成配网启动验证，详见根目录 FLASH-NOTES.txt。
+未修改 ESP-IDF 安装，也未改变屏幕或电源电路适配。
+
+实机发现的配网修复
+esp-wifi-connect 2.6.2 的 Stop() 销毁 STA netif 后仍留下 ESP-IDF 默认回调，
+超时进入 APSTA 配网时会访问已释放的接口并崩溃。
+main/boards/common/wifi_board.cc 在 Stop() 前清理默认驱动和回调。
+修改保存在项目源码中，未直接修改 managed_components；升级依赖时应复核该清理。
+tests/test_wifi_provisioning.py 编译实际 StartNetwork()，模拟接口与事件所有权，
+验证超时切换、连接成功、首次配网与强制配网路径。实机还重跑了完整超时切换流程。
+
+建议上板验收顺序
+确认屏幕与 GPIO39 连接关系并解决复用问题；正常启动后检查 GPIO0 边沿日志；
+验证按住录音/松开发送、回复中打断、连续重按和弱网连接期间提前松手；
+最后验证唤醒/AEC 恢复、SW2 电源键及启动配网行为。
